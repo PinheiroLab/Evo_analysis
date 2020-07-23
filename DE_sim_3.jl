@@ -73,44 +73,44 @@ end
 
 ## Library fitness generation functions
 function fit_criteria!(residues::Array{Int64, 1},
-                       high_fit_combinations::Array{Array{Char,1},1},
-                       fitness_function::Array{Pair{Array{Int64,1},Array{Array{Char,1},1}},1})
-    # the function helps create a list of fitness criteria
+    high_fit_combinations::Array{Array{Char,1},1},
+    fitness_states::Array{Float64,1},
+    fitness_function::Array{Tuple{Array{Int64,1},Array{Array{Char,1},1},Array{Float64,1}},1})
+# the function helps create a list of fitness criteria
 
-    fit_comb = Pair(residues, high_fit_combinations)
-    return vcat(fitness_function, fit_comb)
+fit_comb = (residues, high_fit_combinations, fitness_states)
+return vcat(fitness_function, fit_comb)
 end
 
 function fitness_seq(sequence::Array{Char, 1},
-                     fitness_function::Array{Pair{Array{Int64,1},Array{Array{Char,1},1}},1},
-                     fit_states::Array{Float64, 1})
+    fitness_function::Array{Tuple{Array{Int64,1},Array{Array{Char,1},1},Array{Float64,1}},1})
 
-    # this function sums up the fitness of a single sequence
-    fitness = 0.0
-    for criteria = 1:length(fitness_function)
-        if sequence[fitness_function[criteria][1]] in fitness_function[criteria][2]
-            fitness += fit_states[end]
-        else
-            fitness += fit_states[1]
-            end
-    end
-    return fitness
+# this function sums up the fitness of a single sequence
+fitness = 0.0
+for criteria = 1:length(fitness_function)
+    if sequence[fitness_function[criteria][1]] in fitness_function[criteria][2]
+        fitness += fitness_function[criteria][3][end]
+        # Still keeping a 2-state fitness contribution for now
+    else
+        fitness += fitness_function[criteria][3][1]
+        end
+end
+return fitness
 end
 
 function fitness_calculation(r0_pop::SharedArray{Char, 2},
-        fitness_states::Array{Float64, 1},
-        fitness_function::Array{Pair{Array{Int64,1},Array{Array{Char,1},1}},1})
-    # this function calculates the individual sequence fitness for a population
+    fitness_function::Array{Tuple{Array{Int64,1},Array{Array{Char,1},1},Array{Float64,1}},1})
+# this function calculates the individual sequence fitness for a population
 
-    #= I'm creating race conditions in this function when I paralelize. I will
-    need some thinking here to re-write the function to stop that. =#
+#= I'm creating race conditions in this function when I paralelize. I will
+need some thinking here to re-write the function to stop that. =#
 
-    fitness = SharedArray{Float32, 1}(size(r0_pop, 1), init = 0.0)     # Creates an empty fitness matrix
-    for entry = 1:size(r0_pop,1)
-        sequences = r0_pop[entry, :]
-        fitness[entry,1] = fitness_seq(sequences, fitness_function, fitness_states)
-    end
-    return fitness
+fitness = SharedArray{Float32, 1}(size(r0_pop, 1), init = 0.0)     # Creates an empty fitness matrix
+for entry = 1:size(r0_pop,1)
+    sequences = r0_pop[entry, :]
+    fitness[entry,1] = fitness_seq(sequences, fitness_function)
+end
+return fitness
 
 end
 
@@ -191,10 +191,10 @@ function mutation!(population::SharedArray{Char,2},
 end
 
 ## General constraints
-    r0_pop_size = Int64(1e5)     # R0 size
+    r0_pop_size = Int64(1e3)     # R0 size
     sequence_length = 6          # Seqence Length
-    trials = Int64(5e5)          # Number of selection events.
-    r1_pop_size = Int64(1e5)     # Size of the end population
+    trials = Int64(5e3)          # Number of selection events.
+    r1_pop_size = Int64(1e3)     # Size of the end population
 
     #= The final population can exceed r1_pop_size if selected sequences and noise
     exceed this limit. Adjust parameters of the run so that this does not occur =#
@@ -212,21 +212,13 @@ end
     # This generates the random R0
 
 ## Fitness landscape functions
-    fitness_function = Pair{Array{Int64,1},Array{Array{Char,1},1}}[]
-    # Resets the functional landscape
-    #fitness_function = fit_criteria!([5, 6, 7], [['A', 'A', 'A'],['D', 'D', 'D'],['D', 'G', 'G']], fitness_function)
-    fitness_function = fit_criteria!([1, 3], [['A', 'C'],['A', 'D'],['H', 'H']], fitness_function)
-    fitness_function = fit_criteria!([2], [['H'],['A']], fitness_function)
-    #fitness_function = fit_criteria!([3], [['A']], fitness_function)
-    #fitness_function = fit_criteria!([4], [['A']], fitness_function)
+fitness_function = Tuple{Array{Int64,1},Array{Array{Char,1},1},Array{Float64,1}}[]
 
-    # This creates a fitness function
-    fit_lo = 0.0005                     # probability of selection - low fitness
-    fit_hi = 0.3                        # probability of selection - high fitness
-    fitness_states = [fit_lo, fit_hi]
-    # this creates the two states
+# Resets the functional landscape
+fitness_function = fit_criteria!([1], [['A'],['C']], [0.005, 0.3], fitness_function)
+fitness_function = fit_criteria!([3, 4, 5], [['G', 'A', 'A']], [0, -0.2], fitness_function)
 
-    r0_fitness = fitness_calculation(r0_pop, fitness_states, fitness_function)
+    r0_fitness = fitness_calculation(r0_pop, fitness_function)
     # this calculates the fitness of R0
 
 ## Selection
@@ -249,7 +241,7 @@ end
 
 
 ## Analysing the resulting population (R1)
-    r1_fitness = fitness_calculation(r1_pop, fitness_states, fitness_function)
+    r1_fitness = fitness_calculation(r1_pop, fitness_function)
     # this calculates the fitness of R1
 
     r0_metric = Float64(mean(r0_fitness))
@@ -258,9 +250,8 @@ end
     # Log2 chosen here to make the change more obvious
 
 ## Showing changes in population
-    r1_dist = display(plot([r0_fitness, r1_fitness], bins = 0:0.05:0.75, seriestype = [:barhist :stephist],
-    normed=:probability, fillcolor =[:lightgrey :blue], linecolor=[:lightgrey :blue],
-    thickness_scaling = 2, label = ["R0" "R1"]))
+    r1_dist = plot([r0_fitness, r1_fitness], bins = 0:0.05:0.75, seriestype = [:barhist :stephist],
+    normed=:probability, fillcolor =[:lightgrey :blue], linecolor=[:lightgrey :blue], thickness_scaling = 2, label = ["R0" "R1"])
 
 #= The code in atom is causing race conditions. For instance, improvement and r1_dist
 on a "run all" returns 0, while on a step-by-step it returns the correct answer.
@@ -330,8 +321,7 @@ function mi_xyz3d(r_pop::SharedArray{Char, 2})
                 entropy_xixjxk = (-1.0).*sum(log2.(pxixjxk).*pxixjxk);
 
                 information_xixjxk_r[i,j,k]    = (entropy_xi + entropy_xj + entropy_xk)
-                                - (entropy_xixj + entropy_xixk + entropy_xjxk)
-                                + (entropy_xixjxk);
+                                - (entropy_xixj + entropy_xixk + entropy_xjxk) + (entropy_xixjxk);
             end
         end
     end
@@ -364,7 +354,7 @@ delta_mi3d = r1_mi3d - r0_mi3d
 simple_deltami3d = reshape(delta_mi3d, (length(delta_mi3d)))
 simple_deltami3d = sort(simple_deltami3d)
 
-plot([test], bins = -1.4:0.1:0.4, seriestype = [:barhist], fillcolor =[:orange], linecolor=[:orange],
+plot([simple_deltami3d], bins = simple_deltami3d[begin]:0.1:simple_deltami3d[end], seriestype = [:barhist], fillcolor =[:orange], linecolor=[:orange],
 thickness_scaling = 1, label = ["deltaMI 3D"])
 
 findall(x->x==simple_deltami3d[1], delta_mi3d)
