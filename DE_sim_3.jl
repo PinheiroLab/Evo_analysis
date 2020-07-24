@@ -364,7 +364,178 @@ delta_mi3d = r1_mi3d - r0_mi3d
 simple_deltami3d = reshape(delta_mi3d, (length(delta_mi3d)))
 simple_deltami3d = sort(simple_deltami3d)
 
-plot([test], bins = -1.4:0.1:0.4, seriestype = [:barhist], fillcolor =[:orange], linecolor=[:orange],
-thickness_scaling = 1, label = ["deltaMI 3D"])
+plot([simple_deltami3d], bins = simple_deltami3d[begin]:0.002:simple_deltami3d[end], seriestype = [:barhist], fillcolor =[:orange], linecolor=[:orange],
+thickness_scaling = 1, label = "deltaMI 3D") 
 
 findall(x->x==simple_deltami3d[1], delta_mi3d)
+
+## Creating subpopulations and conditional probability analyses
+
+function freq_xy(population::SharedArray{Char, 2},
+    x::Int64,
+    y::Int64,
+    amino_acids::Array{Char, 1})
+
+    # Creates a frequency table comparing positions x and y
+    freq_map = zeros(length(amino_acids), length(amino_acids))
+
+    if size(population, 1) == 0
+        return freq_map
+    else
+        for entry = 1: size(population, 1)
+            xi = findall(a->a== population[entry,x], amino_acids)
+            yi = findall(b->b== population[entry,y], amino_acids)
+            freq_map[yi[1], xi[1]] += 1
+        end
+    end
+
+    freq_map = freq_map ./ sum(freq_map)
+    return freq_map
+end
+
+function pxy_givenz(population::SharedArray{Char, 2}, 
+    xy::Array{Int64,1}, z::Int64,  
+    amino_acids::Array{Char, 1})
+
+    #this function returns all p(x,y) probabilities for a given z residue
+
+    pop_sort = sortslices(population, dims = 1, by= a -> a[z])
+    indexes = z_subsets(population, z, amino_acids, sequence_length)
+
+    pxiyi_givenz = zeros(Float64, length(amino_acids), length(amino_acids), length(amino_acids))
+    for zi = 1:length(amino_acids)
+        pxiyi_givenz[:,:,zi] = freq_xy(convert(SharedArray{Char, 2},pop_sort[indexes[zi]:indexes[zi+1], :]), xy[1],
+            xy[2], amino_acids)
+    end
+
+    return pxiyi_givenz
+end
+
+function delta_pxy_givenz(r1_population::SharedArray{Char, 2}, 
+    r0_population::SharedArray{Char, 2}, 
+    xy::Array{Int64,1}, z::Int64, 
+    amino_acids::Array{Char, 1})
+
+    # this is just a function to minimise errors when looking at the 
+    # change in conditional probability P(x,y|z)
+
+    delta_p = zeros(Float64, length(amino_acids),length(amino_acids),length(amino_acids))
+    delta_p = pxy_givenz(r1_population, xy ,z, amino_acids) - pxy_givenz(r0_population, xy,z, amino_acids)
+
+    return delta_p
+end
+
+xy = [3,4]
+z = 5
+
+maps = delta_pxy_givenz(r1_pop, r0_pop, xy, z, amino_acids)
+plot(heatmap(maps[:,:,1]), heatmap(maps[:,:,2]), heatmap(maps[:,:,3]), heatmap(maps[:,:,4]),
+    heatmap(maps[:,:,5]), heatmap(maps[:,:,6]), heatmap(maps[:,:,7]), clims = (minimum(maps), maximum(maps)), layout = 7)
+    # the heatmaps here are limited to the 7 aa currently in the amino_acids - needs to be automated
+
+## Simple analysis of delta p(x,y)|z
+simple_deltapxy = reshape(maps, (length(maps)))
+simple_deltapxy = sort(simple_deltapxy)
+plot([simple_deltapxy], bins = simple_deltapxy[begin]:0.001:simple_deltapxy[end], seriestype = [:barhist], fillcolor =[:lightgreen], linecolor=[:green],
+thickness_scaling = 1, label = "delta p(x,y|z)") 
+
+## Simple interrogation of the simple_deltapxy tensor
+# it basically recapitulates positive selection functions
+combinations = findall(x->x==simple_deltapxy[end], maps)
+println("given ", z, " as ", amino_acids[combinations[1][3]], " the following combinations are of interest:")
+println("residue ", xy[2], " = ", amino_acids[combinations[1][1]])
+println("residue ", xy[1], " = ", amino_acids[combinations[1][2]])
+
+
+## MI of xy|z - calculated here as the sum of MIs for one Z
+#= I don't think this is the fastest way to do this but I am too curious 
+to not set it up an see what it looks like. I'll create an array of tensors
+and then use one to vizualise the MI and sum of MI =#
+
+function z_subsets(population::SharedArray{Char, 2},
+    amino_acids::Array{Char, 1}, 
+    sequence_length::Int64)
+
+    # This returns an array containing the indexes for each
+    # residue in a sorted array (x for residues, y for aa)
+
+    indexes = zeros(Int64, length(amino_acids)+1, sequence_length)
+
+    for z = 1:sequence_length
+        pop_sort = sortslices(population, dims = 1, by= a -> a[z])
+        for aa = 1: length(amino_acids)
+            indexes[aa, z] = findfirst(b->b == amino_acids[aa], pop_sort[:,z])
+        end
+    end
+
+    indexes[end, :] = size(pop_sort, 1) * ones(Int64, sequence_length)
+    return indexes
+end
+
+function z_subsets(population::SharedArray{Char, 2},
+    z::Int64,
+    amino_acids::Array{Char, 1}, 
+    sequence_length::Int64)
+
+    # This returns an array containing the indexes for one
+    # residue (z) in a sorted vector
+
+    indexes = zeros(Int64, length(amino_acids)+1)
+
+    pop_sort = sortslices(population, dims = 1, by= a -> a[z])
+    for aa = 1: length(amino_acids)
+        indexes[aa] = findfirst(b->b == amino_acids[aa], pop_sort[:,z])
+    end
+    indexes[end] = size(pop_sort, 1)
+    return indexes
+end
+
+function givenz_mi_xy(population::SharedArray{Char, 2},
+    z::Int64,
+    sequence_length::Int64,
+    amino_acids::Array{Char, 1})
+
+    # this function gives an MI tensor for xy for each amino_acid
+    # at a given position z. Thinking about how these values are calculated
+    # I reckon a calculation as for the MI functions will be more accurate
+
+    pop_sort = sortslices(population, dims = 1, by= a -> a[z])
+    givenz_mixy = zeros(Float64, sequence_length, sequence_length, length(amino_acids))
+    pop_index = z_subsets(population, z, amino_acids, sequence_length)
+
+    for aa = 1: length(amino_acids)
+        subpop = convert(SharedArray{Char, 2},pop_sort[pop_index[aa]:pop_index[aa+1], :])
+        givenz_mixy[:,:,aa] = mi_xy2d(subpop)
+    end
+
+    return givenz_mixy
+end
+
+
+# calculates all the required subsets (to save memory)
+r0_index = z_subsets(r0_pop, amino_acids, sequence_length)
+r1_index = z_subsets(r1_pop, amino_acids, sequence_length)
+
+# calculates dMI(x,y|z)
+r0_z1 = givenz_mi_xy(r0_pop,5, sequence_length, amino_acids)
+r1_z1 = givenz_mi_xy(r1_pop,5, sequence_length, amino_acids)
+deltami_z1 = r0_z1 - r1_z1
+
+maps2 = deltami_z1
+plot(heatmap(maps2[:,:,1]), heatmap(maps2[:,:,2]), heatmap(maps2[:,:,3]), heatmap(maps2[:,:,4]),
+    heatmap(maps2[:,:,5]), heatmap(maps2[:,:,6]), heatmap(maps2[:,:,7]), clims = (minimum(maps2), maximum(maps2)), layout = 7)
+# same constraints to the previous tiled heatmap apply here
+
+# just summing up across the possible amino acids - I don't think
+# the maths is correct here.
+collapse_mi = zeros(Float64, sequence_length, sequence_length)
+for aa1 = 1:sequence_length
+    for aa2 = 1:sequence_length
+        collapse_mi[aa1, aa2] = sum(deltami_z1[aa1, aa2, :])
+    end
+end
+
+Heat_map = heatmap(1:size(collapse_mi,1),
+    1:size(collapse_mi,2), collapse_mi,
+    c=cgrad([:blue, :white, :white, :red]),
+    xlabel="aa", ylabel="aa", title="dMI | z for res=5")
