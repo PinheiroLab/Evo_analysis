@@ -114,6 +114,23 @@ return fitness
 
 end
 
+function fitness_to_recovery(fitness_list::SharedArray{Float32, 1})
+    
+    # this function converts fitness scores into a probability of recovery
+    # equation 1 = logistic equation. For the values used here,
+    # scores between -1 and 3 have the biggest impact on selection
+    selection_p = zeros(Float32, length(fitness_list))
+    x0 = 1    # point of maximum selection
+    L = 0.25  # Maximum recovery 
+    k = 1     # how digital the selection is
+    
+    for a = 1 : length(fitness_list)
+        selection_p[a] = L/(1+exp(-k*(fitness_list[a]-x0)))
+    end
+    return selection_p
+end
+    
+
 ## Selection and noise functions
 
 function selection(r0_pop::SharedArray{Char, 2},
@@ -204,8 +221,7 @@ end
 
     ## Creating R0 - the starting population
     position_composition = Pair{Int64,Array{Char,1}}[]
-    position_composition = position!(1, ['A'], position_composition)
-    #position_composition = position!(2, ['H'], position_composition)
+    #position_composition = position!(1, ['A'], position_composition)
     position_composition = pos_criteria_check(position_composition, sequence_length, amino_acids)
     # This sets the positional requirements in R0
     r0_pop = r0_library(position_composition, r0_pop_size, sequence_length)
@@ -215,10 +231,14 @@ end
 fitness_function = Tuple{Array{Int64,1},Array{Array{Char,1},1},Array{Float64,1}}[]
 
 # Resets the functional landscape
-fitness_function = fit_criteria!([1], [['A'],['C']], [0.005, 0.3], fitness_function)
-fitness_function = fit_criteria!([3, 4, 5], [['G', 'A', 'A']], [0, -0.2], fitness_function)
+    fitness_function = fit_criteria!([1], [['A'],['C']], [0.1, -1.0], fitness_function)
+    fitness_function = fit_criteria!([3, 4, 5], [['G', 'A', 'A']], [-0.1, 1.0], fitness_function)
+    fitness_function = fit_criteria!([4], [['D'],['G']], [0.1, -0.2], fitness_function)
+    fitness_function = fit_criteria!([2, 4, 6], [['A', 'D', 'A']], [0.1, 1.0], fitness_function)
+    fitness_function = fit_criteria!([3, 4, 5], [['D', 'D', 'D']], [-0.3, 1.0], fitness_function)
 
     r0_fitness = fitness_calculation(r0_pop, fitness_function)
+    r0_fitness = convert(SharedArray{Float32,1},fitness_to_recovery(r0_fitness))
     # this calculates the fitness of R0
 
 ## Selection
@@ -242,6 +262,7 @@ fitness_function = fit_criteria!([3, 4, 5], [['G', 'A', 'A']], [0, -0.2], fitnes
 
 ## Analysing the resulting population (R1)
     r1_fitness = fitness_calculation(r1_pop, fitness_function)
+    r1_fitness = convert(SharedArray{Float32,1},fitness_to_recovery(r1_fitness))
     # this calculates the fitness of R1
 
     r0_metric = Float64(mean(r0_fitness))
