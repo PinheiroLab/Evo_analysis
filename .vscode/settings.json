@@ -1,0 +1,5 @@
+{
+    "julia.execution.codeInREPL": true,
+    "julia.execution.resultType": "both",
+    "julia.trace.server": "verbose"
+}
