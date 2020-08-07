@@ -201,10 +201,10 @@ function mutation!(population::SharedArray{Char,2},
 end
 
 ## General constraints
-    r0_pop_size = Int64(1e3)     # R0 size
+    r0_pop_size = Int64(1e5)     # R0 size
     sequence_length = 6          # Seqence Length
-    trials = Int64(5e3)          # Number of selection events.
-    r1_pop_size = Int64(1e3)     # Size of the end population
+    trials = Int64(5e5)          # Number of selection events.
+    r1_pop_size = Int64(1e5)     # Size of the end population
 
     #= The final population can exceed r1_pop_size if selected sequences and noise
     exceed this limit. Adjust parameters of the run so that this does not occur =#

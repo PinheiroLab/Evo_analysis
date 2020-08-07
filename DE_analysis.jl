@@ -17,7 +17,7 @@ using StatsBase
 
 
 ## Dependencies from selection file:
-amino_acids = ['A', 'C', 'D', 'E', 'F', 'G', 'H']; #, 'I', 'K', 'L', 'M']#, 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+amino_acids = ['A', 'C', 'D', 'E', 'F', 'G', 'H' , 'I', 'K', 'L', 'M']#, 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
 # Not using a 'packaged' amino acid symbol to allow unnatural amino acids and deletions to be included
 
 ## Interesting variables to pass between files:
@@ -61,9 +61,9 @@ function z_subsets_aa(population::SharedArray{Char, 2},
     pop_sort = sortslices(population, dims = 1, by= a -> a[z])
 
     for aa = 1: length(amino_acids)
-        if aa == 1 && findlast(b->b == amino_acids[aa], pop_sort[:,z]) == nothing
+        if aa == 1 && findlast(b->b == amino_acids[aa], pop_sort[:,z]) === nothing
             indexes[aa] = 1
-        elseif findlast(b->b == amino_acids[aa], pop_sort[:,z]) == nothing
+        elseif findlast(b->b == amino_acids[aa], pop_sort[:,z]) === nothing
             indexes[aa] = indexes[aa-1]
         else
             indexes[aa] = findlast(b->b == amino_acids[aa], pop_sort[:,z]) 
@@ -407,9 +407,9 @@ end
     r0_freq = z_frequency(r0_index)
     r1_freq = z_frequency(r1_index)
     ## Inspecting the distributions per residue to compare pre- and post-selection
-    z = 3
-    sel_effect = plot(bar(r0_freq[:, z]), bar(r1_freq[:, z]), fillcolor =[:lightgrey :blue],
-    ylims =(0,1), label = ["R0" "R1"])
+    z = 1
+    sel_effect = plot(bar(r0_freq[:, z]), bar(r1_freq[:, z]),
+    fillcolor =[:lightgrey :blue], ylims =(0,1), label = ["R0" "R1"])
     ## Kullback-Leibler Divergence for individual residues
     single_kl = kulleib_1d(r1_freq, r0_freq)
     kl_seq = plot(bar(single_kl), fillcolor =[:lightgrey], label = "KL divergence (r1||r0)") 
@@ -522,7 +522,7 @@ the result of approximation errors by either or both algorithms used =#
     bar([string(aa) for aa in amino_acids],given_res_r1[fixed][:, res, fixed_aa]),
     fillcolor =[:lightgrey :blue], ylims =(0,1), label = ["R0_givenz" "R1_givenz"])
 
-    res = 2
+    res = 3
     plot(heatmap([string(aa) for aa in amino_acids],
     [string(res) for res = 1:sequence_length], xlabel = "Residue $res",
     ylabel = "Other_residues", title = "KL divergence (r1|z || r0|z)", clims=(0,0.2),
