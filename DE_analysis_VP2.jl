@@ -178,30 +178,23 @@ using StatsBase
     end
     
     
-## Inspecting the distributions per residue, given a fixed residue
-    fixed = 3       # residue number
-    fixed_aa = 4    # amino acid # in amino_acids
-    res = 4         # residue being looked at
 
-    sel_effect_givenz = plot(bar([string(aa) for aa in amino_acids], given_res_r0[fixed][:, res, fixed_aa]),
-    bar([string(aa) for aa in amino_acids],given_res_r1[fixed][:, res, fixed_aa]),
-    fillcolor =[:lightgrey :blue], ylims =(0,1), label = ["R0_givenz" "R1_givenz"])
 
 ## Showing results for all 
     plot1 = heatmap([string(aa) for aa in amino_acids],[string(res) for res = 1:sequence_length],
-        xlabel = "Residue 1", ylabel = "Other_residues", clims=(0,0.2), given_kla[:,:,1]);
+        xlabel = "Residue 1", ylabel = "Other_residues", given_kla[:,:,1]);
     plot2 = heatmap([string(aa) for aa in amino_acids],[string(res) for res = 1:sequence_length],
-        xlabel = "Residue 2", ylabel = "Other_residues", clims=(0,0.2), given_kla[:,:,2]);
+        xlabel = "Residue 2", ylabel = "Other_residues", given_kla[:,:,2]);
     plot3 = heatmap([string(aa) for aa in amino_acids],[string(res) for res = 1:sequence_length],
-        xlabel = "Residue 3", ylabel = "Other_residues", clims=(0,0.2), given_kla[:,:,3]);
+        xlabel = "Residue 3", ylabel = "Other_residues", given_kla[:,:,3]);
     plot4 = heatmap([string(aa) for aa in amino_acids],[string(res) for res = 1:sequence_length],
-        xlabel = "Residue 4", ylabel = "Other_residues", clims=(0,0.2), given_kla[:,:,4]);
+        xlabel = "Residue 4", ylabel = "Other_residues", given_kla[:,:,4]);
     plot5 = heatmap([string(aa) for aa in amino_acids],[string(res) for res = 1:sequence_length],
-        xlabel = "Residue 5", ylabel = "Other_residues", clims=(0,0.2), given_kla[:,:,5]);
+        xlabel = "Residue 5", ylabel = "Other_residues", given_kla[:,:,5]);
     plot6 = heatmap([string(aa) for aa in amino_acids],[string(res) for res = 1:sequence_length],
-        xlabel = "Residue 6", ylabel = "Other_residues", clims=(0,0.2), given_kla[:,:,6]);
+        xlabel = "Residue 6", ylabel = "Other_residues", given_kla[:,:,6]);
 
-        plot(plot1, plot2, plot3, plot4, plot5, plot6, layout = (3,2))
+    plot(plot1, plot2, plot3, plot4, plot5, plot6,  clims=(0,0.2), layout = (3,2))
 
 ## Histogram
     simple_kl_givenz = reshape(given_kla, (length(given_kla)))
@@ -217,3 +210,11 @@ using StatsBase
         println("$hit: Residue $(combinations[3]) when $(amino_acids[combinations[2]]) is linked to residue $(combinations[1])-> $(simple_kl_givenz[end+1-hit])") 
     end
 
+## Inspecting the distributions per residue, given a fixed residue
+fixed = 3       # residue number
+fixed_aa = 3    # amino acid # in amino_acids
+res = 2         # residue being looked at
+
+sel_effect_givenz = plot(bar([string(aa) for aa in amino_acids], given_res_r0[fixed][:, res, fixed_aa]),
+bar([string(aa) for aa in amino_acids],given_res_r1[fixed][:, res, fixed_aa]),
+fillcolor =[:lightgrey :blue], ylims =(0,1), label = ["R0_givenz" "R1_givenz"])
